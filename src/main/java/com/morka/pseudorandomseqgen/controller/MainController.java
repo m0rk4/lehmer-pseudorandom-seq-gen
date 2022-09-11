@@ -23,7 +23,9 @@ import static java.lang.Math.min;
 import static java.util.Collections.singletonList;
 
 public class MainController {
-    private static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(5);
+
+    private static final ExecutorService THREAD_POOL =
+            Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     private final PseudoRandomGeneratorFacade facade;
 
@@ -82,19 +84,25 @@ public class MainController {
         final int iterationsCount = 5 * 1_000_000;
         final int intervalsCount = 20;
 
-        long targetValue = facade.getLastValueAfterIterations(originalBuilder.build(), iterationsCount);
-        long periodLength = facade.getPeriodLength(originalBuilder.build(), targetValue);
-        long periodValue = facade.getLastValueAfterIterations(originalBuilder.build(), periodLength);
+        Task<PeriodLengthAndValue> periodLengthAndValueTask = TaskFactory.create(() -> {
+            long targetValue = facade.getLastValueAfterIterations(originalBuilder.build(), iterationsCount);
+            long periodLength = facade.getPeriodLength(originalBuilder.build(), targetValue);
+            long periodValue = facade.getLastValueAfterIterations(originalBuilder.build(), periodLength);
+            return new PeriodLengthAndValue(periodLength, periodValue);
+        });
+        periodLengthAndValueTask.setOnSucceeded(e -> {
+            PeriodLengthAndValue periodLengthAndValue = (PeriodLengthAndValue) e.getSource().getValue();
+            PseudoRandomGeneratorBuilder builderWithPeriodSeed = new LehmerPseudoRandomSequenceGenerator.Builder()
+                    .mod(mod)
+                    .coefficient(coefficient)
+                    .seed(periodLengthAndValue.value());
 
-        PseudoRandomGeneratorBuilder builderWithPeriodSeed = new LehmerPseudoRandomSequenceGenerator.Builder()
-                .mod(mod)
-                .coefficient(coefficient)
-                .seed(periodValue);
-
-        calculateAndUpdatePeriodLength(originalBuilder, periodLength, builderWithPeriodSeed);
-        calculateAndUpdateEstimateOfUniformity(originalBuilder, iterationsCount);
-        calculateAndUpdateGeneratorDistribution(originalBuilder, iterationsCount, intervalsCount);
-        calculateAndUpdateSeriesStatistics(originalBuilder, iterationsCount);
+            calculateAndUpdatePeriodLength(originalBuilder, periodLengthAndValue.length(), builderWithPeriodSeed);
+            calculateAndUpdateEstimateOfUniformity(originalBuilder, iterationsCount);
+            calculateAndUpdateGeneratorDistribution(originalBuilder, iterationsCount, intervalsCount);
+            calculateAndUpdateSeriesStatistics(originalBuilder, iterationsCount);
+        });
+        THREAD_POOL.submit(periodLengthAndValueTask);
     }
 
     private void calculateAndUpdateSeriesStatistics(PseudoRandomGeneratorBuilder originalBuilder, int iterationsCount) {
@@ -189,5 +197,8 @@ public class MainController {
     }
 
     private record SeriesCharacteristics(double mathExpectation, double variance, double standardDeviation) {
+    }
+
+    private record PeriodLengthAndValue(long length, long value) {
     }
 }

@@ -1,24 +1,27 @@
 package com.morka.pseudorandomseqgen.controller;
 
+import com.morka.pseudorandomseqgen.dto.GeneratorDistributionDto;
 import com.morka.pseudorandomseqgen.service.LehmerPseudoRandomSequenceGenerator;
 import com.morka.pseudorandomseqgen.service.PseudoRandomGeneratorFacade;
-import com.morka.pseudorandomseqgen.service.PseudoRandomSequenceGenerator;
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import static com.morka.pseudorandomseqgen.controller.NumericTextFormatterFactory.createNumericTextFormatter;
+import static java.lang.Math.min;
+import static java.util.Collections.singletonList;
 
 public class MainController {
+    private static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(4);
 
     private final PseudoRandomGeneratorFacade facade;
 
@@ -33,6 +36,15 @@ public class MainController {
 
     @FXML
     private TextField seedField;
+
+    @FXML
+    private Label periodLength;
+
+    @FXML
+    private Label aperiodicLength;
+
+    @FXML
+    private Label estimationOfUniformity;
 
     public MainController(PseudoRandomGeneratorFacade facade) {
         this.facade = facade;
@@ -56,88 +68,71 @@ public class MainController {
                 .coefficient(coefficient)
                 .seed(seed);
 
-        long targetValue = facade.getLastAfterIterations(originalBuilder.build(), 5 * 1_000_000);
-        long periodLength = facade.getPeriod(originalBuilder.build(), targetValue);
-        long periodValue = facade.getLastAfterIterations(originalBuilder.build(), periodLength);
+        final int iterationsCount = 5 * 1_000_000;
+        final int intervalsCount = 20;
+
+        long targetValue = facade.getLastValueAfterIterations(originalBuilder.build(), iterationsCount);
+        long periodLength = facade.getPeriodLength(originalBuilder.build(), targetValue);
+        long periodValue = facade.getLastValueAfterIterations(originalBuilder.build(), periodLength);
 
         LehmerPseudoRandomSequenceGenerator.Builder builderWithPeriodSeed = new LehmerPseudoRandomSequenceGenerator.Builder()
                 .mod(mod)
                 .coefficient(coefficient)
                 .seed(periodValue);
 
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
-        Task<Long> originalStartIndexTask = TailCounterTaskFactory.create(originalBuilder, periodLength);
-        Task<Long> candidateStartIndexTask = TailCounterTaskFactory.create(builderWithPeriodSeed, periodLength);
-        executorService.submit(originalStartIndexTask);
-        executorService.submit(candidateStartIndexTask);
-        executorService.shutdown();
-        try {
-            if (!executorService.awaitTermination(60, TimeUnit.SECONDS))
-                executorService.shutdownNow();
-        } catch (InterruptedException e) {
-            executorService.shutdownNow();
-        }
-
-        try {
-            long originalStartIndex = originalStartIndexTask.get();
-            long candidateStartIndex = candidateStartIndexTask.get();
-            long aperiodicSequenceLength = Math.min(originalStartIndex, candidateStartIndex) + periodLength;
-            estimate(originalBuilder.build(), (int) aperiodicSequenceLength);
-        } catch (ExecutionException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        draw(originalBuilder.build(), 2 * 1_000_000);
-    }
-
-    private void estimate(PseudoRandomSequenceGenerator generator, int iterations) {
-        assert iterations % 2 == 0;
-
-        double[] numbers = new double[iterations];
-        for (int i = 0; i < iterations; i++)
-            numbers[i] = generator.getNextDouble();
-
-        int inCircle = 0;
-        for (int i = 1; i < numbers.length; i += 2) {
-            double sumOfSquares = numbers[i - 1] * numbers[i - 1] + numbers[i] * numbers[i];
-            if (sumOfSquares < 1.0)
-                inCircle++;
-        }
-
-        System.out.println(inCircle);
-        System.out.println(2.0 * inCircle / numbers.length);
-    }
-
-    private void draw(PseudoRandomSequenceGenerator generator, int iterations) {
-        double[] numbers = new double[iterations];
-        for (int i = 0; i < numbers.length; i++)
-            numbers[i] = generator.getNextDouble();
-
-        Arrays.sort(numbers);
-
-        final int intervalsCount = 20;
-        final double maxDiff = numbers[numbers.length - 1] - numbers[0];
-        final double intervalLength = maxDiff / intervalsCount;
-
-        long[] hits = new long[20];
-        for (double number : numbers) {
-            for (int j = 0; j < intervalsCount; j++) {
-                double start = j * intervalLength;
-                double end = (j + 1) * intervalLength;
-                if (number > start && number <= end) {
-                    hits[j]++;
-                    break;
-                }
+        CompletableFuture<Long> originalStartIndexTask = CompletableFuture.supplyAsync(
+                () -> facade.getTailLengthInAperiodicSequence(originalBuilder, periodLength), THREAD_POOL);
+        CompletableFuture<Long> candidateStartIndexTask = CompletableFuture.supplyAsync(
+                () -> facade.getTailLengthInAperiodicSequence(builderWithPeriodSeed, periodLength), THREAD_POOL);
+        CompletableFuture.allOf(originalStartIndexTask, candidateStartIndexTask).thenAccept(__ -> {
+            try {
+                long aperiodicLength = min(originalStartIndexTask.get(), candidateStartIndexTask.get()) + periodLength;
+                Platform.runLater(() -> fillPeriodsInformation(periodLength, aperiodicLength));
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
             }
-        }
+        });
 
-        XYChart.Series<String, Number> series1 = new XYChart.Series<>();
+        final Task<Double> estimateOfUniformityTask = TaskFactory.create(() ->
+                facade.getIndirectEstimateOfUniformity(originalBuilder.build(), iterationsCount));
+        estimateOfUniformityTask.setOnSucceeded(e -> fillEstimateOfUniformity((double) e.getSource().getValue()));
+
+        final Task<GeneratorDistributionDto> generatorDistributionTask = TaskFactory.create(() ->
+                facade.getGeneratorDistributionInformation(originalBuilder.build(), iterationsCount, intervalsCount));
+        generatorDistributionTask.setOnSucceeded(e -> fillChart((GeneratorDistributionDto) e.getSource().getValue()));
+
+        THREAD_POOL.submit(estimateOfUniformityTask);
+        THREAD_POOL.submit(generatorDistributionTask);
+    }
+
+    private void fillEstimateOfUniformity(double estimateValue) {
+        estimationOfUniformity.setText(String.valueOf(estimateValue));
+    }
+
+    private void fillPeriodsInformation(long periodLength, long aperiodicLength) {
+        this.periodLength.setText(String.valueOf(periodLength));
+        this.aperiodicLength.setText(String.valueOf(aperiodicLength));
+    }
+
+    private void fillChart(GeneratorDistributionDto dto) {
+        XYChart.Series<String, Number> series = getChartSeries(dto);
+        barChart.getData().setAll(singletonList(series));
+    }
+
+    private XYChart.Series<String, Number> getChartSeries(GeneratorDistributionDto dto) {
+        int[] hits = dto.hits();
+        double intervalLength = dto.intervalLength();
+        int intervalsCount = dto.intervalsCount();
+        int iterations = dto.iterations();
+
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
         for (int i = 0; i < intervalsCount; i++) {
             double start = i * intervalLength;
             double end = (i + 1) * intervalLength;
-            series1.getData().add(new XYChart.Data<>("%.3f - %.3f".formatted(start, end), (double) hits[i] / iterations));
+            series.getData()
+                    .add(new XYChart.Data<>("%.3f - %.3f".formatted(start, end), (double) hits[i] / iterations));
         }
-        barChart.getData().setAll(Collections.singletonList(series1));
+        return series;
     }
 
     private long getControlValue(TextField textField) {

@@ -31,7 +31,7 @@ public final class LehmerPseudoRandomSequenceGenerator implements PseudoRandomSe
         return (double) getNext() / mod;
     }
 
-    public static class Builder {
+    public final static class Builder implements PseudoRandomGeneratorBuilder {
         private long mod;
 
         private long seed;
@@ -53,6 +53,7 @@ public final class LehmerPseudoRandomSequenceGenerator implements PseudoRandomSe
             return this;
         }
 
+        @Override
         public LehmerPseudoRandomSequenceGenerator build() {
             return new LehmerPseudoRandomSequenceGenerator(coefficient, mod, seed);
         }

@@ -1,6 +1,7 @@
 package com.morka.pseudorandomseqgen.service;
 
 import com.morka.pseudorandomseqgen.dto.GeneratorDistributionDto;
+import com.morka.pseudorandomseqgen.dto.GeneratorMathematicalExpectationDto;
 
 public sealed interface PseudoRandomGeneratorFacade permits PseudoRandomSequenceGeneratorFacadeImpl {
 
@@ -17,4 +18,13 @@ public sealed interface PseudoRandomGeneratorFacade permits PseudoRandomSequence
             int iterationsCount,
             int intervalsCount
     );
+
+    GeneratorMathematicalExpectationDto getMathematicalExpectation(
+            PseudoRandomSequenceGenerator generator,
+            int iterations
+    );
+
+    double getVariance(GeneratorMathematicalExpectationDto mathematicalExpectationDto);
+
+    double getStandardDeviation(double variance);
 }

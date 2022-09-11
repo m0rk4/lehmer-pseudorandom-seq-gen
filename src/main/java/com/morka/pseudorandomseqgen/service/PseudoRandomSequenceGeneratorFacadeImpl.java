@@ -1,8 +1,11 @@
 package com.morka.pseudorandomseqgen.service;
 
 import com.morka.pseudorandomseqgen.dto.GeneratorDistributionDto;
+import com.morka.pseudorandomseqgen.dto.GeneratorMathematicalExpectationDto;
 
 import java.util.Arrays;
+
+import static java.lang.Math.sqrt;
 
 public final class PseudoRandomSequenceGeneratorFacadeImpl implements PseudoRandomGeneratorFacade {
 
@@ -83,5 +86,37 @@ public final class PseudoRandomSequenceGeneratorFacadeImpl implements PseudoRand
         }
 
         return new GeneratorDistributionDto(hits, intervalsCount, iterationsCount, intervalLength);
+    }
+
+    @Override
+    public GeneratorMathematicalExpectationDto getMathematicalExpectation(
+            PseudoRandomSequenceGenerator generator,
+            int iterations
+    ) {
+        double[] series = new double[iterations];
+        double sum = 0.0;
+        for (int i = 0; i < iterations; i++) {
+            series[i] = generator.getNextDouble();
+            sum += series[i];
+        }
+
+        return new GeneratorMathematicalExpectationDto(series, sum / iterations);
+    }
+
+    @Override
+    public double getVariance(GeneratorMathematicalExpectationDto mathematicalExpectationDto) {
+        double mathExpectation = mathematicalExpectationDto.expectation();
+        double[] series = mathematicalExpectationDto.series();
+        double sum = 0.0;
+        for (double value : series) {
+            double diff = value - mathExpectation;
+            sum += diff * diff;
+        }
+        return sum / (series.length - 1);
+    }
+
+    @Override
+    public double getStandardDeviation(double variance) {
+        return sqrt(variance);
     }
 }

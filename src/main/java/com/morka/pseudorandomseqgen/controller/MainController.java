@@ -1,6 +1,7 @@
 package com.morka.pseudorandomseqgen.controller;
 
 import com.morka.pseudorandomseqgen.dto.GeneratorDistributionDto;
+import com.morka.pseudorandomseqgen.dto.GeneratorMathematicalExpectationDto;
 import com.morka.pseudorandomseqgen.service.LehmerPseudoRandomSequenceGenerator;
 import com.morka.pseudorandomseqgen.service.PseudoRandomGeneratorFacade;
 import javafx.application.Platform;
@@ -21,7 +22,7 @@ import static java.lang.Math.min;
 import static java.util.Collections.singletonList;
 
 public class MainController {
-    private static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(4);
+    private static final ExecutorService THREAD_POOL = Executors.newFixedThreadPool(5);
 
     private final PseudoRandomGeneratorFacade facade;
 
@@ -45,6 +46,15 @@ public class MainController {
 
     @FXML
     private Label estimationOfUniformity;
+
+    @FXML
+    private Label mathExpectation;
+
+    @FXML
+    private Label standardDeviation;
+
+    @FXML
+    private Label variance;
 
     public MainController(PseudoRandomGeneratorFacade facade) {
         this.facade = facade;
@@ -93,16 +103,39 @@ public class MainController {
             }
         });
 
-        final Task<Double> estimateOfUniformityTask = TaskFactory.create(() ->
+        Task<Double> estimateOfUniformityTask = TaskFactory.create(() ->
                 facade.getIndirectEstimateOfUniformity(originalBuilder.build(), iterationsCount));
         estimateOfUniformityTask.setOnSucceeded(e -> fillEstimateOfUniformity((double) e.getSource().getValue()));
 
-        final Task<GeneratorDistributionDto> generatorDistributionTask = TaskFactory.create(() ->
+        Task<GeneratorDistributionDto> generatorDistributionTask = TaskFactory.create(() ->
                 facade.getGeneratorDistributionInformation(originalBuilder.build(), iterationsCount, intervalsCount));
         generatorDistributionTask.setOnSucceeded(e -> fillChart((GeneratorDistributionDto) e.getSource().getValue()));
 
+        Task<SeriesCharacteristics> seriesCharacteristicsTask = TaskFactory.create(
+                () -> calculateSeriesCharacteristics(originalBuilder, iterationsCount));
+        seriesCharacteristicsTask.setOnSucceeded(e ->
+                fillSeriesCharacteristics((SeriesCharacteristics) e.getSource().getValue()));
+
         THREAD_POOL.submit(estimateOfUniformityTask);
         THREAD_POOL.submit(generatorDistributionTask);
+        THREAD_POOL.submit(seriesCharacteristicsTask);
+    }
+
+    private SeriesCharacteristics calculateSeriesCharacteristics(
+            LehmerPseudoRandomSequenceGenerator.Builder originalBuilder,
+            int iterationsCount
+    ) {
+        GeneratorMathematicalExpectationDto expectationDto =
+                facade.getMathematicalExpectation(originalBuilder.build(), iterationsCount);
+        double variance = facade.getVariance(expectationDto);
+        double standardDeviation = facade.getStandardDeviation(variance);
+        return new SeriesCharacteristics(expectationDto.expectation(), variance, standardDeviation);
+    }
+
+    private void fillSeriesCharacteristics(SeriesCharacteristics seriesCharacteristics) {
+        mathExpectation.setText(String.valueOf(seriesCharacteristics.mathExpectation()));
+        variance.setText(String.valueOf(seriesCharacteristics.variance()));
+        standardDeviation.setText(String.valueOf(seriesCharacteristics.standardDeviation()));
     }
 
     private void fillEstimateOfUniformity(double estimateValue) {
@@ -137,5 +170,8 @@ public class MainController {
 
     private long getControlValue(TextField textField) {
         return (Long) textField.getTextFormatter().getValue();
+    }
+
+    private record SeriesCharacteristics(double mathExpectation, double variance, double standardDeviation) {
     }
 }

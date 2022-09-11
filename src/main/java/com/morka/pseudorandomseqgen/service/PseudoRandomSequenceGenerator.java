@@ -1,6 +1,8 @@
 package com.morka.pseudorandomseqgen.service;
 
-public sealed interface PseudoRandomSequenceGenerator permits LemerPseudoRandomSequenceGenerator {
+public sealed interface PseudoRandomSequenceGenerator permits LehmerPseudoRandomSequenceGenerator {
 
-    double getNext();
+    long getNext();
+
+    double getNextDouble();
 }

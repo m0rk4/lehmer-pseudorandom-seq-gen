@@ -1,23 +1,16 @@
 package com.morka.pseudorandomseqgen.service;
 
-public final class LemerPseudoRandomSequenceGenerator implements PseudoRandomSequenceGenerator {
-
-    private long currentSeed;
+public final class LehmerPseudoRandomSequenceGenerator implements PseudoRandomSequenceGenerator {
 
     private final long coefficient;
-
     private final long mod;
+    private long currentSeed;
 
-    private LemerPseudoRandomSequenceGenerator(long coefficient, long mod, long seed) {
+    private LehmerPseudoRandomSequenceGenerator(long coefficient, long mod, long seed) {
         validateParams(coefficient, mod);
         this.currentSeed = seed;
         this.coefficient = coefficient;
         this.mod = mod;
-    }
-
-    public double getNext() {
-        currentSeed = (coefficient * (currentSeed % mod)) % mod;
-        return (double) currentSeed / mod;
     }
 
     private static void validateParams(long coefficient, long mod) {
@@ -27,8 +20,20 @@ public final class LemerPseudoRandomSequenceGenerator implements PseudoRandomSeq
             throw new IllegalArgumentException("Mod should be greater than coefficient.");
     }
 
+    @Override
+    public long getNext() {
+        currentSeed = (coefficient * (currentSeed % mod)) % mod;
+        return currentSeed;
+    }
+
+    @Override
+    public double getNextDouble() {
+        return (double) getNext() / mod;
+    }
+
     public static class Builder {
         private long mod;
+
         private long seed;
 
         private long coefficient;
@@ -48,8 +53,8 @@ public final class LemerPseudoRandomSequenceGenerator implements PseudoRandomSeq
             return this;
         }
 
-        public LemerPseudoRandomSequenceGenerator build() {
-            return new LemerPseudoRandomSequenceGenerator(coefficient, mod, seed);
+        public LehmerPseudoRandomSequenceGenerator build() {
+            return new LehmerPseudoRandomSequenceGenerator(coefficient, mod, seed);
         }
     }
 }

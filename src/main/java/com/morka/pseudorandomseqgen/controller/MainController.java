@@ -3,6 +3,7 @@ package com.morka.pseudorandomseqgen.controller;
 import com.morka.pseudorandomseqgen.dto.GeneratorDistributionDto;
 import com.morka.pseudorandomseqgen.dto.GeneratorMathematicalExpectationDto;
 import com.morka.pseudorandomseqgen.service.LehmerPseudoRandomSequenceGenerator;
+import com.morka.pseudorandomseqgen.service.PseudoRandomGeneratorBuilder;
 import com.morka.pseudorandomseqgen.service.PseudoRandomGeneratorFacade;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -73,7 +74,7 @@ public class MainController {
         long coefficient = getControlValue(coefficientField);
         long seed = getControlValue(seedField);
 
-        LehmerPseudoRandomSequenceGenerator.Builder originalBuilder = new LehmerPseudoRandomSequenceGenerator.Builder()
+        PseudoRandomGeneratorBuilder originalBuilder = new LehmerPseudoRandomSequenceGenerator.Builder()
                 .mod(mod)
                 .coefficient(coefficient)
                 .seed(seed);
@@ -85,11 +86,45 @@ public class MainController {
         long periodLength = facade.getPeriodLength(originalBuilder.build(), targetValue);
         long periodValue = facade.getLastValueAfterIterations(originalBuilder.build(), periodLength);
 
-        LehmerPseudoRandomSequenceGenerator.Builder builderWithPeriodSeed = new LehmerPseudoRandomSequenceGenerator.Builder()
+        PseudoRandomGeneratorBuilder builderWithPeriodSeed = new LehmerPseudoRandomSequenceGenerator.Builder()
                 .mod(mod)
                 .coefficient(coefficient)
                 .seed(periodValue);
 
+        calculateAndUpdatePeriodLength(originalBuilder, periodLength, builderWithPeriodSeed);
+        calculateAndUpdateEstimateOfUniformity(originalBuilder, iterationsCount);
+        calculateAndUpdateGeneratorDistribution(originalBuilder, iterationsCount, intervalsCount);
+        calculateAndUpdateSeriesStatistics(originalBuilder, iterationsCount);
+    }
+
+    private void calculateAndUpdateSeriesStatistics(PseudoRandomGeneratorBuilder originalBuilder, int iterationsCount) {
+        Task<SeriesCharacteristics> seriesCharacteristicsTask = TaskFactory.create(
+                () -> calculateSeriesCharacteristics(originalBuilder, iterationsCount));
+        seriesCharacteristicsTask.setOnSucceeded(e ->
+                fillSeriesCharacteristics((SeriesCharacteristics) e.getSource().getValue()));
+        THREAD_POOL.submit(seriesCharacteristicsTask);
+    }
+
+    private void calculateAndUpdateGeneratorDistribution(PseudoRandomGeneratorBuilder originalBuilder,
+                                                         int iterationsCount,
+                                                         int intervalsCount) {
+        Task<GeneratorDistributionDto> generatorDistributionTask = TaskFactory.create(() ->
+                facade.getGeneratorDistributionInformation(originalBuilder.build(), iterationsCount, intervalsCount));
+        generatorDistributionTask.setOnSucceeded(e -> fillChart((GeneratorDistributionDto) e.getSource().getValue()));
+        THREAD_POOL.submit(generatorDistributionTask);
+    }
+
+    private void calculateAndUpdateEstimateOfUniformity(PseudoRandomGeneratorBuilder originalBuilder,
+                                                        int iterationsCount) {
+        Task<Double> estimateOfUniformityTask = TaskFactory.create(() ->
+                facade.getIndirectEstimateOfUniformity(originalBuilder.build(), iterationsCount));
+        estimateOfUniformityTask.setOnSucceeded(e -> fillEstimateOfUniformity((double) e.getSource().getValue()));
+        THREAD_POOL.submit(estimateOfUniformityTask);
+    }
+
+    private void calculateAndUpdatePeriodLength(PseudoRandomGeneratorBuilder originalBuilder,
+                                                long periodLength,
+                                                PseudoRandomGeneratorBuilder builderWithPeriodSeed) {
         CompletableFuture<Long> originalStartIndexTask = CompletableFuture.supplyAsync(
                 () -> facade.getTailLengthInAperiodicSequence(originalBuilder, periodLength), THREAD_POOL);
         CompletableFuture<Long> candidateStartIndexTask = CompletableFuture.supplyAsync(
@@ -102,29 +137,10 @@ public class MainController {
                 throw new RuntimeException(e);
             }
         });
-
-        Task<Double> estimateOfUniformityTask = TaskFactory.create(() ->
-                facade.getIndirectEstimateOfUniformity(originalBuilder.build(), iterationsCount));
-        estimateOfUniformityTask.setOnSucceeded(e -> fillEstimateOfUniformity((double) e.getSource().getValue()));
-
-        Task<GeneratorDistributionDto> generatorDistributionTask = TaskFactory.create(() ->
-                facade.getGeneratorDistributionInformation(originalBuilder.build(), iterationsCount, intervalsCount));
-        generatorDistributionTask.setOnSucceeded(e -> fillChart((GeneratorDistributionDto) e.getSource().getValue()));
-
-        Task<SeriesCharacteristics> seriesCharacteristicsTask = TaskFactory.create(
-                () -> calculateSeriesCharacteristics(originalBuilder, iterationsCount));
-        seriesCharacteristicsTask.setOnSucceeded(e ->
-                fillSeriesCharacteristics((SeriesCharacteristics) e.getSource().getValue()));
-
-        THREAD_POOL.submit(estimateOfUniformityTask);
-        THREAD_POOL.submit(generatorDistributionTask);
-        THREAD_POOL.submit(seriesCharacteristicsTask);
     }
 
-    private SeriesCharacteristics calculateSeriesCharacteristics(
-            LehmerPseudoRandomSequenceGenerator.Builder originalBuilder,
-            int iterationsCount
-    ) {
+    private SeriesCharacteristics calculateSeriesCharacteristics(PseudoRandomGeneratorBuilder originalBuilder,
+                                                                 int iterationsCount) {
         GeneratorMathematicalExpectationDto expectationDto =
                 facade.getMathematicalExpectation(originalBuilder.build(), iterationsCount);
         double variance = facade.getVariance(expectationDto);

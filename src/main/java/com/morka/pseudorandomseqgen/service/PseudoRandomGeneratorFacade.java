@@ -13,16 +13,12 @@ public sealed interface PseudoRandomGeneratorFacade permits PseudoRandomSequence
 
     long getTailLengthInAperiodicSequence(PseudoRandomGeneratorBuilder builder, long period);
 
-    GeneratorDistributionDto getGeneratorDistributionInformation(
-            PseudoRandomSequenceGenerator generator,
-            int iterationsCount,
-            int intervalsCount
-    );
+    GeneratorDistributionDto getGeneratorDistributionInformation(PseudoRandomSequenceGenerator generator,
+                                                                 int iterationsCount,
+                                                                 int intervalsCount);
 
-    GeneratorMathematicalExpectationDto getMathematicalExpectation(
-            PseudoRandomSequenceGenerator generator,
-            int iterations
-    );
+    GeneratorMathematicalExpectationDto getMathematicalExpectation(PseudoRandomSequenceGenerator generator,
+                                                                   int iterations);
 
     double getVariance(GeneratorMathematicalExpectationDto mathematicalExpectationDto);
 

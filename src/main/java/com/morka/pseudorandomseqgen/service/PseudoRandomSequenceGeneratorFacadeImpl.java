@@ -59,11 +59,9 @@ public final class PseudoRandomSequenceGeneratorFacadeImpl implements PseudoRand
     }
 
     @Override
-    public GeneratorDistributionDto getGeneratorDistributionInformation(
-            PseudoRandomSequenceGenerator generator,
-            int iterationsCount,
-            int intervalsCount
-    ) {
+    public GeneratorDistributionDto getGeneratorDistributionInformation(PseudoRandomSequenceGenerator generator,
+                                                                        int iterationsCount,
+                                                                        int intervalsCount) {
         double[] numbers = new double[iterationsCount];
         for (int i = 0; i < numbers.length; i++)
             numbers[i] = generator.getNextDouble();
@@ -89,10 +87,8 @@ public final class PseudoRandomSequenceGeneratorFacadeImpl implements PseudoRand
     }
 
     @Override
-    public GeneratorMathematicalExpectationDto getMathematicalExpectation(
-            PseudoRandomSequenceGenerator generator,
-            int iterations
-    ) {
+    public GeneratorMathematicalExpectationDto getMathematicalExpectation(PseudoRandomSequenceGenerator generator,
+                                                                          int iterations) {
         double[] series = new double[iterations];
         double sum = 0.0;
         for (int i = 0; i < iterations; i++) {

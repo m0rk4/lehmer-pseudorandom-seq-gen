@@ -28,6 +28,11 @@ public class PseudoRandomSequenceApplication extends Application {
     }
 
     @Override
+    public void init() {
+        Runtime.getRuntime().addShutdownHook(new Thread(PseudoRandomSequenceApplication::destroyThreadPool));
+    }
+
+    @Override
     public void start(Stage stage) throws IOException {
         URL resource = PseudoRandomSequenceApplication.class.getResource(FXML_VIEW);
         FXMLLoader fxmlLoader = new FXMLLoader(resource);
@@ -42,6 +47,10 @@ public class PseudoRandomSequenceApplication extends Application {
 
     @Override
     public void stop() {
+        destroyThreadPool();
+    }
+
+    private static void destroyThreadPool() {
         THREAD_POOL.shutdown();
         try {
             if (!THREAD_POOL.awaitTermination(THREAD_POOL_TERMINATION_TIME_IN_SECONDS, TimeUnit.SECONDS))

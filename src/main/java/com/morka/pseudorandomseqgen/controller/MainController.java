@@ -18,7 +18,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
 import static com.morka.pseudorandomseqgen.controller.NumericTextFormatterFactory.createNumericTextFormatter;
-import static java.lang.Math.min;
 import static java.util.Collections.singletonList;
 
 public class MainController {
@@ -138,8 +137,9 @@ public class MainController {
                 () -> facade.getTailLengthInAperiodicSequence(builderWithPeriodSeed, periodLength), threadPool);
         CompletableFuture.allOf(originalStartIndexTask, candidateStartIndexTask).thenAccept(__ -> {
             try {
-                long aperiodicLength = min(originalStartIndexTask.get(), candidateStartIndexTask.get()) + periodLength;
-                Platform.runLater(() -> fillPeriodsInformation(periodLength, aperiodicLength));
+                long originalStartIndex = originalStartIndexTask.get();
+                long candidateStartIndex = candidateStartIndexTask.get();
+                Platform.runLater(() -> fillPeriodsInformation(periodLength, originalStartIndex, candidateStartIndex));
             } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
@@ -165,9 +165,11 @@ public class MainController {
         estimationOfUniformity.setText(String.valueOf(estimateValue));
     }
 
-    private void fillPeriodsInformation(long periodLength, long aperiodicLength) {
+    private void fillPeriodsInformation(long periodLength, long originalStartIndexTask, long candidateStartIndex) {
         this.periodLength.setText(String.valueOf(periodLength));
-        this.aperiodicLength.setText(String.valueOf(aperiodicLength));
+        this.aperiodicLength.setText(
+                "min(%d, %d) + %d".formatted(originalStartIndexTask, candidateStartIndex, periodLength)
+        );
     }
 
     private void fillChart(GeneratorDistributionDto dto) {

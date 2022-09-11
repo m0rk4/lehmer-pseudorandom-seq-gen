@@ -50,12 +50,12 @@ public final class PseudoRandomSequenceGeneratorFacadeImpl implements PseudoRand
         for (long i = 0; i < period; i++)
             firstGenerator.getNext();
 
+        long i = 0;
         PseudoRandomSequenceGenerator secondGenerator = builder.build();
-        for (long i = 0; i < period; i++)
-            if (firstGenerator.getNext() == secondGenerator.getNext())
-                return i;
+        while (firstGenerator.getNext() != secondGenerator.getNext())
+            i++;
 
-        throw new IllegalStateException("Unreachable.");
+        return i;
     }
 
     @Override

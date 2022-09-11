@@ -13,7 +13,7 @@ repositories {
 }
 
 ext {
-    junitVersion = '5.8.2'
+    junitVersion = '5.9.0'
 }
 
 sourceCompatibility = '17'
@@ -25,7 +25,7 @@ tasks.withType(JavaCompile) {
 
 application {
     mainModule = 'com.morka.pseudorandomseqgen'
-    mainClass = 'com.morka.pseudorandomseqgen.HelloApplication'
+    mainClass = 'com.morka.pseudorandomseqgen.PseudoRandomSequenceApplication'
 }
 
 javafx {
@@ -34,7 +34,6 @@ javafx {
 }
 
 dependencies {
-
     testImplementation("org.junit.jupiter:junit-jupiter-api:${junitVersion}")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:${junitVersion}")
 }

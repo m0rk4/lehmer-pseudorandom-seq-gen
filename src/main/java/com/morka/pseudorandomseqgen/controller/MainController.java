@@ -16,7 +16,6 @@ import javafx.scene.control.TextField;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static com.morka.pseudorandomseqgen.controller.NumericTextFormatterFactory.createNumericTextFormatter;
 import static java.lang.Math.min;
@@ -24,8 +23,7 @@ import static java.util.Collections.singletonList;
 
 public class MainController {
 
-    private static final ExecutorService THREAD_POOL =
-            Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    private final ExecutorService threadPool;
 
     private final PseudoRandomGeneratorFacade facade;
 
@@ -59,7 +57,8 @@ public class MainController {
     @FXML
     private Label variance;
 
-    public MainController(PseudoRandomGeneratorFacade facade) {
+    public MainController(ExecutorService threadPool, PseudoRandomGeneratorFacade facade) {
+        this.threadPool = threadPool;
         this.facade = facade;
     }
 
@@ -102,7 +101,7 @@ public class MainController {
             calculateAndUpdateGeneratorDistribution(originalBuilder, iterationsCount, intervalsCount);
             calculateAndUpdateSeriesStatistics(originalBuilder, iterationsCount);
         });
-        THREAD_POOL.submit(periodLengthAndValueTask);
+        threadPool.submit(periodLengthAndValueTask);
     }
 
     private void calculateAndUpdateSeriesStatistics(PseudoRandomGeneratorBuilder originalBuilder, int iterationsCount) {
@@ -110,7 +109,7 @@ public class MainController {
                 () -> calculateSeriesCharacteristics(originalBuilder, iterationsCount));
         seriesCharacteristicsTask.setOnSucceeded(e ->
                 fillSeriesCharacteristics((SeriesCharacteristics) e.getSource().getValue()));
-        THREAD_POOL.submit(seriesCharacteristicsTask);
+        threadPool.submit(seriesCharacteristicsTask);
     }
 
     private void calculateAndUpdateGeneratorDistribution(PseudoRandomGeneratorBuilder originalBuilder,
@@ -119,7 +118,7 @@ public class MainController {
         Task<GeneratorDistributionDto> generatorDistributionTask = TaskFactory.create(() ->
                 facade.getGeneratorDistributionInformation(originalBuilder.build(), iterationsCount, intervalsCount));
         generatorDistributionTask.setOnSucceeded(e -> fillChart((GeneratorDistributionDto) e.getSource().getValue()));
-        THREAD_POOL.submit(generatorDistributionTask);
+        threadPool.submit(generatorDistributionTask);
     }
 
     private void calculateAndUpdateEstimateOfUniformity(PseudoRandomGeneratorBuilder originalBuilder,
@@ -127,16 +126,16 @@ public class MainController {
         Task<Double> estimateOfUniformityTask = TaskFactory.create(() ->
                 facade.getIndirectEstimateOfUniformity(originalBuilder.build(), iterationsCount));
         estimateOfUniformityTask.setOnSucceeded(e -> fillEstimateOfUniformity((double) e.getSource().getValue()));
-        THREAD_POOL.submit(estimateOfUniformityTask);
+        threadPool.submit(estimateOfUniformityTask);
     }
 
     private void calculateAndUpdatePeriodLength(PseudoRandomGeneratorBuilder originalBuilder,
                                                 long periodLength,
                                                 PseudoRandomGeneratorBuilder builderWithPeriodSeed) {
         CompletableFuture<Long> originalStartIndexTask = CompletableFuture.supplyAsync(
-                () -> facade.getTailLengthInAperiodicSequence(originalBuilder, periodLength), THREAD_POOL);
+                () -> facade.getTailLengthInAperiodicSequence(originalBuilder, periodLength), threadPool);
         CompletableFuture<Long> candidateStartIndexTask = CompletableFuture.supplyAsync(
-                () -> facade.getTailLengthInAperiodicSequence(builderWithPeriodSeed, periodLength), THREAD_POOL);
+                () -> facade.getTailLengthInAperiodicSequence(builderWithPeriodSeed, periodLength), threadPool);
         CompletableFuture.allOf(originalStartIndexTask, candidateStartIndexTask).thenAccept(__ -> {
             try {
                 long aperiodicLength = min(originalStartIndexTask.get(), candidateStartIndexTask.get()) + periodLength;

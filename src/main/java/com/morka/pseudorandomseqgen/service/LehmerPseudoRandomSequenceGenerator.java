@@ -22,7 +22,7 @@ public final class LehmerPseudoRandomSequenceGenerator implements PseudoRandomSe
 
     @Override
     public long getNext() {
-        currentSeed = (coefficient * (currentSeed % mod)) % mod;
+        currentSeed = (coefficient * currentSeed) % mod;
         return currentSeed;
     }
 
